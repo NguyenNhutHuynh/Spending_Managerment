@@ -21,7 +21,7 @@ import { calculateCycle, formatCurrency, formatDateDisplay } from '../utils/date
 import { Transaction, TransactionType } from '../types';
 
 export const HomeScreen: React.FC = () => {
-  const { dataVersion, notifyDataChanged, settings, setActiveTab } = useApp();
+  const { dataVersion, notifyDataChanged, settings, setActiveTab, startEditTransaction } = useApp();
 
   const [offsetMonths, setOffsetMonths] = useState<number>(0);
   const [filterType, setFilterType] = useState<TransactionType | 'all'>('all');
@@ -364,15 +364,23 @@ export const HomeScreen: React.FC = () => {
               const catColor = item.category_color || (isIncome ? '#10B981' : '#EF4444');
 
               return (
-                <View key={item.id} style={styles.transactionItem}>
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.transactionItem}
+                  onPress={() => startEditTransaction(item)}
+                  activeOpacity={0.7}
+                >
                   <View style={[styles.categoryIconCircle, { backgroundColor: catColor }]}>
                     <Ionicons name={iconName} size={20} color="#FFFFFF" />
                   </View>
 
                   <View style={styles.txDetails}>
-                    <Text style={styles.txCategoryName} numberOfLines={1}>
-                      {item.category_name || (isIncome ? 'Thu nhập' : 'Chi tiêu')}
-                    </Text>
+                    <View style={styles.txCategoryTitleRow}>
+                      <Text style={styles.txCategoryName} numberOfLines={1}>
+                        {item.category_name || (isIncome ? 'Thu nhập' : 'Chi tiêu')}
+                      </Text>
+                      <Ionicons name="pencil" size={12} color="#94A3B8" style={{ marginLeft: 6 }} />
+                    </View>
                     {!!item.note && (
                       <Text style={styles.txNote} numberOfLines={1}>
                         {item.note}
@@ -394,13 +402,16 @@ export const HomeScreen: React.FC = () => {
 
                     <TouchableOpacity
                       style={styles.txDeleteBtn}
-                      onPress={() => handleDelete(item.id, item.note || item.category_name)}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleDelete(item.id, item.note || item.category_name);
+                      }}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     >
                       <Ionicons name="trash-outline" size={18} color="#94A3B8" />
                     </TouchableOpacity>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
@@ -747,6 +758,10 @@ const styles = StyleSheet.create({
   txDetails: {
     flex: 1,
     justifyContent: 'center',
+  },
+  txCategoryTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   txCategoryName: {
     fontSize: 15,

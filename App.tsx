@@ -14,10 +14,11 @@ import { initDatabase } from './src/database/db';
 import { AppProvider, useApp } from './src/context/AppContext';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { AddScreen } from './src/screens/AddScreen';
+import { StatsScreen } from './src/screens/StatsScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 
 function MainApp() {
-  const { activeTab, setActiveTab } = useApp();
+  const { activeTab, setActiveTab, editingTransaction } = useApp();
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -31,12 +32,16 @@ function MainApp() {
             {activeTab === 'home'
               ? 'Tổng quan chi tiêu'
               : activeTab === 'add'
-              ? 'Ghi chép giao dịch'
+              ? editingTransaction
+                ? 'Sửa giao dịch'
+                : 'Ghi chép giao dịch'
+              : activeTab === 'stats'
+              ? 'Thống kê & Báo cáo'
               : 'Cài đặt & Danh mục'}
           </Text>
         </View>
         <View style={styles.mvpBadge}>
-          <Text style={styles.mvpBadgeText}>Giai đoạn 1 (MVP)</Text>
+          <Text style={styles.mvpBadgeText}>Giai đoạn 2</Text>
         </View>
       </View>
 
@@ -44,20 +49,21 @@ function MainApp() {
       <View style={styles.screenContainer}>
         {activeTab === 'home' && <HomeScreen />}
         {activeTab === 'add' && <AddScreen />}
+        {activeTab === 'stats' && <StatsScreen />}
         {activeTab === 'settings' && <SettingsScreen />}
       </View>
 
-      {/* CUSTOM BOTTOM TAB BAR */}
+      {/* CUSTOM BOTTOM TAB BAR - 4 TABS */}
       <View style={styles.bottomBarWrapper}>
         <View style={styles.bottomBar}>
-          {/* TAB TỔNG QUAN */}
+          {/* TAB 1: TỔNG QUAN */}
           <TouchableOpacity
             style={styles.tabItem}
             onPress={() => setActiveTab('home')}
             activeOpacity={0.7}
           >
             <Ionicons
-              name={activeTab === 'home' ? 'pie-chart' : 'pie-chart-outline'}
+              name={activeTab === 'home' ? 'wallet' : 'wallet-outline'}
               size={22}
               color={activeTab === 'home' ? '#2563EB' : '#94A3B8'}
             />
@@ -71,29 +77,56 @@ function MainApp() {
             </Text>
           </TouchableOpacity>
 
-          {/* NÚT THÊM NỔI BẬT Ở GIỮA */}
-          <View style={styles.centerButtonContainer}>
-            <TouchableOpacity
-              style={[
-                styles.centerButton,
-                activeTab === 'add' && styles.centerButtonActive,
-              ]}
-              onPress={() => setActiveTab('add')}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="add" size={32} color="#FFFFFF" />
-            </TouchableOpacity>
+          {/* TAB 2: THỐNG KÊ & BÁO CÁO */}
+          <TouchableOpacity
+            style={styles.tabItem}
+            onPress={() => setActiveTab('stats')}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={activeTab === 'stats' ? 'pie-chart' : 'pie-chart-outline'}
+              size={22}
+              color={activeTab === 'stats' ? '#2563EB' : '#94A3B8'}
+            />
             <Text
               style={[
-                styles.centerButtonText,
+                styles.tabText,
+                activeTab === 'stats' && styles.tabTextActive,
+              ]}
+            >
+              Thống kê
+            </Text>
+          </TouchableOpacity>
+
+          {/* TAB 3: GHI CHÉP (+) NỔI BẬT */}
+          <TouchableOpacity
+            style={styles.tabItem}
+            onPress={() => setActiveTab('add')}
+            activeOpacity={0.7}
+          >
+            <View
+              style={[
+                styles.addIconBadge,
+                activeTab === 'add' && styles.addIconBadgeActive,
+              ]}
+            >
+              <Ionicons
+                name={editingTransaction ? 'pencil' : 'add'}
+                size={22}
+                color="#FFFFFF"
+              />
+            </View>
+            <Text
+              style={[
+                styles.tabText,
                 activeTab === 'add' && styles.tabTextActive,
               ]}
             >
-              Ghi chép
+              {editingTransaction ? 'Sửa' : 'Ghi chép'}
             </Text>
-          </View>
+          </TouchableOpacity>
 
-          {/* TAB CÀI ĐẶT */}
+          {/* TAB 4: CÀI ĐẶT */}
           <TouchableOpacity
             style={styles.tabItem}
             onPress={() => setActiveTab('settings')}
@@ -207,20 +240,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
-    paddingBottom: Platform.OS === 'ios' ? 20 : 10,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 8,
   },
   bottomBar: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
     height: 60,
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 6,
+    paddingVertical: 4,
   },
   tabText: {
     fontSize: 11,
@@ -232,36 +265,22 @@ const styles = StyleSheet.create({
     color: '#2563EB',
     fontWeight: '700',
   },
-  centerButtonContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    top: -12,
-  },
-  centerButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+  addIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#2563EB',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#2563EB',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 6,
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  centerButtonActive: {
+  addIconBadgeActive: {
     backgroundColor: '#1D4ED8',
-    transform: [{ scale: 1.05 }],
-  },
-  centerButtonText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748B',
-    marginTop: 2,
+    transform: [{ scale: 1.1 }],
   },
   loadingContainer: {
     flex: 1,

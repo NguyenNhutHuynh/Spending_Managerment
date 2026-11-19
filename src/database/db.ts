@@ -1,5 +1,13 @@
 import * as SQLite from 'expo-sqlite';
-import { Category, Setting, Transaction, TransactionType } from '../types';
+import {
+  Category,
+  CategoryBreakdown,
+  CycleTrendItem,
+  Setting,
+  Transaction,
+  TransactionType,
+} from '../types';
+import { calculateCycle } from '../utils/dateCycle';
 
 const DB_NAME = 'spending_management.db';
 
@@ -206,6 +214,27 @@ export function getTransactions(options: GetTransactionsOptions = {}): Transacti
   return db.getAllSync<Transaction>(sql, params);
 }
 
+export function getTransactionById(id: number): Transaction | null {
+  const db = getDb();
+  const sql = `
+    SELECT 
+      t.id,
+      t.category_id,
+      t.amount,
+      t.type,
+      t.note,
+      t.transaction_date,
+      t.created_at,
+      c.name as category_name,
+      c.icon as category_icon,
+      c.color as category_color
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE t.id = ?;
+  `;
+  return db.getFirstSync<Transaction>(sql, [id]);
+}
+
 export function addTransaction(
   categoryId: number,
   amount: number,
@@ -220,6 +249,23 @@ export function addTransaction(
     [categoryId, amount, type, note.trim(), transactionDate]
   );
   return Number(result.lastInsertRowId);
+}
+
+export function updateTransaction(
+  id: number,
+  categoryId: number,
+  amount: number,
+  type: TransactionType,
+  note: string,
+  transactionDate: string
+): void {
+  const db = getDb();
+  db.runSync(
+    `UPDATE transactions 
+     SET category_id = ?, amount = ?, type = ?, note = ?, transaction_date = ?
+     WHERE id = ?;`,
+    [categoryId, amount, type, note.trim(), transactionDate, id]
+  );
 }
 
 export function deleteTransaction(id: number): void {
@@ -291,4 +337,66 @@ export function getCycleSummary(startISO: string, endISO: string): {
     totalExpense,
     netSavings,
   };
+}
+
+/**
+ * Thống kê tỷ trọng theo danh mục trong khoảng thời gian chu kỳ
+ */
+export function getCategoryBreakdown(
+  startISO: string,
+  endISO: string,
+  type: TransactionType
+): CategoryBreakdown[] {
+  const db = getDb();
+  const rows = db.getAllSync<{
+    category_id: number;
+    category_name: string;
+    icon: string;
+    color: string;
+    total_amount: number;
+    count: number;
+  }>(
+    `SELECT 
+      t.category_id,
+      COALESCE(c.name, 'Chưa phân loại') as category_name,
+      COALESCE(c.icon, 'pricetag') as icon,
+      COALESCE(c.color, '#64748B') as color,
+      SUM(t.amount) as total_amount,
+      COUNT(t.id) as count
+     FROM transactions t
+     LEFT JOIN categories c ON t.category_id = c.id
+     WHERE t.type = ? AND t.transaction_date >= ? AND t.transaction_date <= ?
+     GROUP BY t.category_id
+     ORDER BY total_amount DESC;`,
+    [type, startISO, endISO]
+  );
+
+  const grandTotal = rows.reduce((sum, r) => sum + r.total_amount, 0);
+
+  return rows.map((r) => ({
+    ...r,
+    percentage: grandTotal > 0 ? Math.round((r.total_amount / grandTotal) * 1000) / 10 : 0,
+  }));
+}
+
+/**
+ * Lấy tổng kết 6 chu kỳ tháng gần nhất (từ cũ đến mới)
+ */
+export function getLast6CyclesSummary(cycleStartDay: number): CycleTrendItem[] {
+  const result: CycleTrendItem[] = [];
+  for (let offset = -5; offset <= 0; offset++) {
+    const cycle = calculateCycle(cycleStartDay, offset);
+    const summary = getCycleSummary(cycle.startISO, cycle.endISO);
+    const startD = cycle.startDate;
+    const shortLabel = `T${startD.getMonth() + 1}`;
+    result.push({
+      label: cycle.label,
+      shortLabel,
+      totalIncome: summary.totalIncome,
+      totalExpense: summary.totalExpense,
+      startISO: cycle.startISO,
+      endISO: cycle.endISO,
+    });
+  }
+  return result;
 }
