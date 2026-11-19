@@ -12,12 +12,18 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
-import { addTransaction, getCategories } from '../database/db';
+import { addTransaction, updateTransaction, getCategories } from '../database/db';
 import { Category, TransactionType } from '../types';
 import { formatCurrency, formatLocalDateOnly, formatLocalISODateTime } from '../utils/dateCycle';
 
 export const AddScreen: React.FC = () => {
-  const { dataVersion, notifyDataChanged, setActiveTab } = useApp();
+  const {
+    dataVersion,
+    notifyDataChanged,
+    setActiveTab,
+    editingTransaction,
+    setEditingTransaction,
+  } = useApp();
 
   const [txType, setTxType] = useState<TransactionType>('expense');
   const [rawAmount, setRawAmount] = useState<string>('');
@@ -29,14 +35,30 @@ export const AddScreen: React.FC = () => {
   const [dateOption, setDateOption] = useState<'today' | 'yesterday' | 'custom'>('today');
   const [customDate, setCustomDate] = useState<string>(formatLocalDateOnly(new Date()));
 
+  // Điền thông tin khi đang chỉnh sửa giao dịch
+  useEffect(() => {
+    if (editingTransaction) {
+      setTxType(editingTransaction.type);
+      setRawAmount(Math.round(editingTransaction.amount).toString());
+      setSelectedCategoryId(editingTransaction.category_id);
+      setNote(editingTransaction.note || '');
+      if (editingTransaction.transaction_date) {
+        setCustomDate(formatLocalDateOnly(new Date(editingTransaction.transaction_date)));
+        setDateOption('custom');
+      }
+    }
+  }, [editingTransaction]);
+
   // Tải danh mục theo loại
   useEffect(() => {
     try {
       const cats = getCategories(txType);
       setCategories(cats);
+      // Nếu không phải đang sửa hoặc danh mục cũ không còn thuộc loại này
       if (cats.length > 0) {
-        // Tự động chọn danh mục đầu tiên nếu danh mục cũ không còn thuộc loại này
-        setSelectedCategoryId(cats[0].id);
+        if (!editingTransaction || editingTransaction.type !== txType) {
+          setSelectedCategoryId(cats[0].id);
+        }
       } else {
         setSelectedCategoryId(null);
       }
@@ -87,7 +109,16 @@ export const AddScreen: React.FC = () => {
     return formatLocalISODateTime(resolved);
   }, [dateOption, customDate]);
 
-  // Lưu giao dịch
+  // Hủy chỉnh sửa
+  const handleCancelEdit = () => {
+    setEditingTransaction(null);
+    setRawAmount('');
+    setNote('');
+    setDateOption('today');
+    setActiveTab('home');
+  };
+
+  // Lưu hoặc Cập nhật giao dịch
   const handleSave = () => {
     if (numericAmount <= 0) {
       Alert.alert('Chưa nhập số tiền', 'Vui lòng nhập số tiền lớn hơn 0.');
@@ -100,13 +131,27 @@ export const AddScreen: React.FC = () => {
     }
 
     try {
-      addTransaction(
-        selectedCategoryId,
-        numericAmount,
-        txType,
-        note,
-        resolvedTransactionDate
-      );
+      if (editingTransaction) {
+        // Cập nhật giao dịch đã có
+        updateTransaction(
+          editingTransaction.id,
+          selectedCategoryId,
+          numericAmount,
+          txType,
+          note,
+          resolvedTransactionDate
+        );
+        setEditingTransaction(null);
+      } else {
+        // Thêm mới giao dịch
+        addTransaction(
+          selectedCategoryId,
+          numericAmount,
+          txType,
+          note,
+          resolvedTransactionDate
+        );
+      }
 
       // Reset form
       setRawAmount('');
@@ -132,6 +177,21 @@ export const AddScreen: React.FC = () => {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {/* BANNER CHẾ ĐỘ CHỈNH SỬA */}
+        {editingTransaction && (
+          <View style={styles.editingBanner}>
+            <View style={styles.editingBannerLeft}>
+              <Ionicons name="pencil-outline" size={18} color="#B45309" style={{ marginRight: 6 }} />
+              <Text style={styles.editingBannerText}>
+                Đang sửa giao dịch #{editingTransaction.id}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={handleCancelEdit} style={styles.cancelEditBtn}>
+              <Text style={styles.cancelEditBtnText}>Hủy sửa</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* HEADER CHUYỂN ĐỔI THU / CHI */}
         <View style={styles.segmentContainer}>
           <TouchableOpacity
@@ -432,7 +492,7 @@ export const AddScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* NÚT LƯU GIAO DỊCH */}
+        {/* NÚT LƯU HOẶC CẬP NHẬT GIAO DỊCH */}
         <TouchableOpacity
           style={[
             styles.saveButton,
@@ -441,9 +501,16 @@ export const AddScreen: React.FC = () => {
           onPress={handleSave}
           activeOpacity={0.8}
         >
-          <Ionicons name="checkmark-circle" size={22} color="#FFFFFF" style={{ marginRight: 8 }} />
+          <Ionicons
+            name={editingTransaction ? 'sync-outline' : 'checkmark-circle'}
+            size={22}
+            color="#FFFFFF"
+            style={{ marginRight: 8 }}
+          />
           <Text style={styles.saveButtonText}>
-            Lưu {txType === 'expense' ? 'Khoản Chi' : 'Khoản Thu'}
+            {editingTransaction
+              ? `Cập nhật ${txType === 'expense' ? 'Khoản Chi' : 'Khoản Thu'}`
+              : `Lưu ${txType === 'expense' ? 'Khoản Chi' : 'Khoản Thu'}`}
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -463,6 +530,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 90,
+  },
+  editingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  editingBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  editingBannerText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  cancelEditBtn: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+  },
+  cancelEditBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#B45309',
   },
   segmentContainer: {
     flexDirection: 'row',

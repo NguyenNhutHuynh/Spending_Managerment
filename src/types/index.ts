@@ -42,3 +42,22 @@ export interface CycleSummary {
   totalExpense: number;
   netSavings: number;
 }
+
+export interface CategoryBreakdown {
+  category_id: number;
+  category_name: string;
+  icon: string;
+  color: string;
+  total_amount: number;
+  percentage: number;
+  count: number;
+}
+
+export interface CycleTrendItem {
+  label: string;
+  shortLabel: string;
+  totalIncome: number;
+  totalExpense: number;
+  startISO: string;
+  endISO: string;
+}

@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { Setting } from '../types';
+import { Setting, Transaction } from '../types';
 import { getSettings } from '../database/db';
 
-export type AppTab = 'home' | 'add' | 'settings';
+export type AppTab = 'home' | 'add' | 'stats' | 'settings';
 
 interface AppContextType {
   activeTab: AppTab;
@@ -11,6 +11,9 @@ interface AppContextType {
   notifyDataChanged: () => void;
   settings: Setting;
   reloadSettings: () => void;
+  editingTransaction: Transaction | null;
+  setEditingTransaction: (transaction: Transaction | null) => void;
+  startEditTransaction: (transaction: Transaction) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -18,6 +21,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [dataVersion, setDataVersion] = useState<number>(0);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [settings, setSettings] = useState<Setting>({
     id: 1,
     initial_balance: 0,
@@ -38,6 +42,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     reloadSettings();
   }, [reloadSettings]);
 
+  const startEditTransaction = useCallback((transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setActiveTab('add');
+  }, []);
+
   useEffect(() => {
     reloadSettings();
   }, [reloadSettings]);
@@ -51,6 +60,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notifyDataChanged,
         settings,
         reloadSettings,
+        editingTransaction,
+        setEditingTransaction,
+        startEditTransaction,
       }}
     >
       {children}
