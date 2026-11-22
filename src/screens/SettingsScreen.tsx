@@ -208,7 +208,7 @@ export const SettingsScreen: React.FC = () => {
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
+      showsVerticalScrollIndicator={Platform.OS === 'web'}
       keyboardShouldPersistTaps="handled"
     >
       {/* KHỐI CÀI ĐẶT CHUNG */}
@@ -456,6 +456,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+    ...(Platform.OS === 'web'
+      ? {
+          height: '100%',
+        }
+      : {}),
   },
   contentContainer: {
     paddingHorizontal: 16,

@@ -8,6 +8,7 @@ import {
   RefreshControl,
   TextInput,
   Alert,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
@@ -128,8 +129,12 @@ export const HomeScreen: React.FC = () => {
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2E7D32']} />}
+      showsVerticalScrollIndicator={Platform.OS === 'web'}
+      refreshControl={
+        Platform.OS !== 'web' ? (
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2E7D32']} />
+        ) : undefined
+      }
     >
       {/* HEADER & TỔNG SỐ DƯ */}
       <View style={styles.headerCard}>
@@ -425,6 +430,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+    ...(Platform.OS === 'web'
+      ? {
+          height: '100%',
+        }
+      : {}),
   },
   contentContainer: {
     paddingHorizontal: 16,

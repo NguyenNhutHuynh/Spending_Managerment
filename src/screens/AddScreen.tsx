@@ -522,9 +522,21 @@ const styles = StyleSheet.create({
   keyboardContainer: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+    overflow: 'hidden',
+    minHeight: 0,
+    ...(Platform.OS === 'web'
+      ? {
+          height: '100%',
+        }
+      : {}),
   },
   container: {
     flex: 1,
+    ...(Platform.OS === 'web'
+      ? {
+          height: '100%',
+        }
+      : {}),
   },
   contentContainer: {
     paddingHorizontal: 16,

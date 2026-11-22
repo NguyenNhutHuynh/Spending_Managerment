@@ -170,8 +170,12 @@ export const StatsScreen: React.FC = () => {
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2563EB']} />}
+      showsVerticalScrollIndicator={Platform.OS === 'web'}
+      refreshControl={
+        Platform.OS !== 'web' ? (
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2563EB']} />
+        ) : undefined
+      }
     >
       {/* HEADER BỘ CHỌN CHU KỲ */}
       <View style={styles.cycleCard}>
@@ -432,6 +436,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+    ...(Platform.OS === 'web'
+      ? {
+          height: '100%',
+        }
+      : {}),
   },
   contentContainer: {
     paddingHorizontal: 16,

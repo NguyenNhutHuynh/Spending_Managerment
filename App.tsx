@@ -211,6 +211,7 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: Platform.OS === 'web' ? '#F4F6F8' : '#FFFFFF',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   appContainer: {
     flex: 1,
@@ -218,19 +219,22 @@ const styles = StyleSheet.create({
     maxWidth: 480,
     alignSelf: 'center',
     backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+    height: '100%',
     ...(Platform.OS === 'web'
       ? {
           shadowColor: '#0F172A',
           shadowOffset: { width: 0, height: 4 },
           shadowOpacity: 0.08,
           shadowRadius: 16,
-          height: '100%',
         }
       : {}),
   },
   safeArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+    height: '100%',
   },
   topBar: {
     flexDirection: 'row',
@@ -241,6 +245,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
+    flexShrink: 0,
   },
   topBarLeft: {
     flexDirection: 'row',
@@ -268,12 +273,16 @@ const styles = StyleSheet.create({
   screenContainer: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+    overflow: 'hidden',
+    minHeight: 0,
+    height: '100%',
   },
   bottomBarWrapper: {
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
     paddingBottom: Platform.OS === 'ios' ? 20 : 8,
+    flexShrink: 0,
   },
   bottomBar: {
     flexDirection: 'row',
