@@ -1,4 +1,5 @@
-import * as SQLite from 'expo-sqlite';
+import { Platform } from 'react-native';
+import type * as SQLite from 'expo-sqlite';
 import {
   Category,
   CategoryBreakdown,
@@ -8,22 +9,32 @@ import {
   TransactionType,
 } from '../types';
 import { calculateCycle } from '../utils/dateCycle';
+import * as storageAdapter from './storageAdapter';
 
 const DB_NAME = 'spending_management.db';
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
 
 export function getDb(): SQLite.SQLiteDatabase {
-  if (!dbInstance) {
-    dbInstance = SQLite.openDatabaseSync(DB_NAME);
+  if (Platform.OS === 'web') {
+    throw new Error('SQLite không khả dụng trên Web. Hãy sử dụng storageAdapter.');
   }
-  return dbInstance;
+  if (!dbInstance) {
+    const SQLiteModule = require('expo-sqlite');
+    dbInstance = SQLiteModule.openDatabaseSync(DB_NAME);
+  }
+  return dbInstance!;
 }
 
 /**
  * Khởi tạo Database và nạp dữ liệu ban đầu nếu chưa có
  */
 export function initDatabase(): void {
+  if (Platform.OS === 'web') {
+    storageAdapter.initWebStorage();
+    return;
+  }
+
   const db = getDb();
 
   // Bật chế độ FOREIGN KEY và WAL
@@ -34,7 +45,8 @@ export function initDatabase(): void {
     CREATE TABLE IF NOT EXISTS settings (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       initial_balance REAL DEFAULT 0,
-      cycle_start_day INTEGER DEFAULT 1 CHECK (cycle_start_day >= 1 AND cycle_start_day <= 28)
+      cycle_start_day INTEGER DEFAULT 1 CHECK (cycle_start_day >= 1 AND cycle_start_day <= 28),
+      reminder_enabled INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS categories (
@@ -56,13 +68,20 @@ export function initDatabase(): void {
     );
   `);
 
+  // Migration an toàn cho cột reminder_enabled nếu database cũ chưa có
+  try {
+    db.execSync('ALTER TABLE settings ADD COLUMN reminder_enabled INTEGER DEFAULT 0;');
+  } catch {
+    // Cột đã tồn tại, bỏ qua
+  }
+
   // Seed settings mặc định
   db.runSync(`
     INSERT OR IGNORE INTO settings (id, initial_balance, cycle_start_day)
     VALUES (1, 0, 1);
   `);
 
-  // Kiểm tra và seed categories mặc định nếu bảng trống
+  // Kiểm tra và seed categories mặc định nếu bảng trống (6 danh mục)
   const catCount = db.getFirstSync<{ count: number }>(
     'SELECT COUNT(*) as count FROM categories;'
   );
@@ -101,15 +120,25 @@ export function initDatabase(): void {
 // ==================== SETTINGS ====================
 
 export function getSettings(): Setting {
+  if (Platform.OS === 'web') {
+    return storageAdapter.getWebSettings();
+  }
   const db = getDb();
   const setting = db.getFirstSync<Setting>('SELECT * FROM settings WHERE id = 1;');
   if (setting) {
-    return setting;
+    return {
+      ...setting,
+      reminder_enabled: setting.reminder_enabled ?? 0,
+    };
   }
-  return { id: 1, initial_balance: 0, cycle_start_day: 1 };
+  return { id: 1, initial_balance: 0, cycle_start_day: 1, reminder_enabled: 0 };
 }
 
 export function updateSettings(initialBalance: number, cycleStartDay: number): void {
+  if (Platform.OS === 'web') {
+    storageAdapter.updateWebSettings(initialBalance, cycleStartDay);
+    return;
+  }
   const db = getDb();
   const validStartDay = Math.min(Math.max(1, Math.floor(cycleStartDay || 1)), 28);
   db.runSync(
@@ -118,9 +147,24 @@ export function updateSettings(initialBalance: number, cycleStartDay: number): v
   );
 }
 
+export function updateReminderSetting(enabled: boolean): void {
+  if (Platform.OS === 'web') {
+    storageAdapter.updateWebReminderSetting(enabled);
+    return;
+  }
+  const db = getDb();
+  db.runSync(
+    `UPDATE settings SET reminder_enabled = ? WHERE id = 1;`,
+    [enabled ? 1 : 0]
+  );
+}
+
 // ==================== CATEGORIES ====================
 
 export function getCategories(type?: TransactionType): Category[] {
+  if (Platform.OS === 'web') {
+    return storageAdapter.getWebCategories(type);
+  }
   const db = getDb();
   if (type) {
     return db.getAllSync<Category>(
@@ -137,6 +181,9 @@ export function addCategory(
   icon: string,
   color: string
 ): number {
+  if (Platform.OS === 'web') {
+    return storageAdapter.addWebCategory(name, type, icon, color);
+  }
   const db = getDb();
   const result = db.runSync(
     `INSERT INTO categories (name, type, icon, color) VALUES (?, ?, ?, ?);`,
@@ -146,6 +193,9 @@ export function addCategory(
 }
 
 export function deleteCategory(id: number): boolean {
+  if (Platform.OS === 'web') {
+    return storageAdapter.deleteWebCategory(id);
+  }
   const db = getDb();
   // Kiểm tra xem danh mục có giao dịch nào tham chiếu đến không
   const usage = db.getFirstSync<{ count: number }>(
@@ -169,6 +219,9 @@ export interface GetTransactionsOptions {
 }
 
 export function getTransactions(options: GetTransactionsOptions = {}): Transaction[] {
+  if (Platform.OS === 'web') {
+    return storageAdapter.getWebTransactions(options);
+  }
   const db = getDb();
   const conditions: string[] = [];
   const params: (string | number)[] = [];
@@ -214,7 +267,25 @@ export function getTransactions(options: GetTransactionsOptions = {}): Transacti
   return db.getAllSync<Transaction>(sql, params);
 }
 
+export function getTransactionsByRange(
+  startISO: string,
+  endISO: string,
+  type?: TransactionType
+): Transaction[] {
+  if (Platform.OS === 'web') {
+    return storageAdapter.getWebTransactionsByRange(startISO, endISO, type);
+  }
+  return getTransactions({
+    startDate: startISO,
+    endDate: endISO,
+    type,
+  });
+}
+
 export function getTransactionById(id: number): Transaction | null {
+  if (Platform.OS === 'web') {
+    return storageAdapter.getWebTransactionById(id);
+  }
   const db = getDb();
   const sql = `
     SELECT 
@@ -242,6 +313,9 @@ export function addTransaction(
   note: string,
   transactionDate: string
 ): number {
+  if (Platform.OS === 'web') {
+    return storageAdapter.addWebTransaction(categoryId, amount, type, note, transactionDate);
+  }
   const db = getDb();
   const result = db.runSync(
     `INSERT INTO transactions (category_id, amount, type, note, transaction_date)
@@ -259,6 +333,10 @@ export function updateTransaction(
   note: string,
   transactionDate: string
 ): void {
+  if (Platform.OS === 'web') {
+    storageAdapter.updateWebTransaction(id, categoryId, amount, type, note, transactionDate);
+    return;
+  }
   const db = getDb();
   db.runSync(
     `UPDATE transactions 
@@ -269,6 +347,10 @@ export function updateTransaction(
 }
 
 export function deleteTransaction(id: number): void {
+  if (Platform.OS === 'web') {
+    storageAdapter.deleteWebTransaction(id);
+    return;
+  }
   const db = getDb();
   db.runSync('DELETE FROM transactions WHERE id = ?;', [id]);
 }
@@ -284,6 +366,9 @@ export function getOverallBalance(): {
   totalExpenseAllTime: number;
   currentBalance: number;
 } {
+  if (Platform.OS === 'web') {
+    return storageAdapter.getWebOverallBalance();
+  }
   const db = getDb();
   const setting = getSettings();
 
@@ -306,6 +391,18 @@ export function getOverallBalance(): {
   };
 }
 
+export function getAllTimeTotals(): {
+  initialBalance: number;
+  totalIncomeAllTime: number;
+  totalExpenseAllTime: number;
+  currentBalance: number;
+} {
+  if (Platform.OS === 'web') {
+    return storageAdapter.getWebAllTimeTotals();
+  }
+  return getOverallBalance();
+}
+
 /**
  * Tổng kết thu, chi trong khoảng thời gian cụ thể (chu kỳ)
  */
@@ -314,6 +411,9 @@ export function getCycleSummary(startISO: string, endISO: string): {
   totalExpense: number;
   netSavings: number;
 } {
+  if (Platform.OS === 'web') {
+    return storageAdapter.getWebCycleSummary(startISO, endISO);
+  }
   const db = getDb();
   const incomeRow = db.getFirstSync<{ total: number }>(
     `SELECT COALESCE(SUM(amount), 0) as total 
@@ -347,6 +447,9 @@ export function getCategoryBreakdown(
   endISO: string,
   type: TransactionType
 ): CategoryBreakdown[] {
+  if (Platform.OS === 'web') {
+    return storageAdapter.getWebCategoryBreakdown(startISO, endISO, type);
+  }
   const db = getDb();
   const rows = db.getAllSync<{
     category_id: number;
@@ -371,9 +474,9 @@ export function getCategoryBreakdown(
     [type, startISO, endISO]
   );
 
-  const grandTotal = rows.reduce((sum, r) => sum + r.total_amount, 0);
+  const grandTotal = rows.reduce((sum: number, r: { total_amount: number }) => sum + r.total_amount, 0);
 
-  return rows.map((r) => ({
+  return rows.map((r: { category_id: number; category_name: string; icon: string; color: string; total_amount: number; count: number }) => ({
     ...r,
     percentage: grandTotal > 0 ? Math.round((r.total_amount / grandTotal) * 1000) / 10 : 0,
   }));
@@ -383,6 +486,9 @@ export function getCategoryBreakdown(
  * Lấy tổng kết 6 chu kỳ tháng gần nhất (từ cũ đến mới)
  */
 export function getLast6CyclesSummary(cycleStartDay: number): CycleTrendItem[] {
+  if (Platform.OS === 'web') {
+    return storageAdapter.getWebLast6CyclesSummary(cycleStartDay);
+  }
   const result: CycleTrendItem[] = [];
   for (let offset = -5; offset <= 0; offset++) {
     const cycle = calculateCycle(cycleStartDay, offset);

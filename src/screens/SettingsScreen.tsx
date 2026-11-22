@@ -7,17 +7,21 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  Switch,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import {
   updateSettings,
+  updateReminderSetting,
   getCategories,
   addCategory,
   deleteCategory,
 } from '../database/db';
 import { Category, TransactionType } from '../types';
 import { formatCurrency } from '../utils/dateCycle';
+import { scheduleDailyReminder, cancelDailyReminder } from '../utils/notifications';
 
 // Danh sách biểu tượng phổ biến
 const POPULAR_ICONS = [
@@ -64,13 +68,19 @@ const PALETTE_COLORS = [
 ];
 
 export const SettingsScreen: React.FC = () => {
-  const { settings, reloadSettings, notifyDataChanged, dataVersion } = useApp();
+  const { settings, notifyDataChanged, dataVersion } = useApp();
 
   // Settings state
   const [initialBalanceInput, setInitialBalanceInput] = useState<string>(
     settings.initial_balance.toString()
   );
   const [cycleStartDay, setCycleStartDay] = useState<number>(settings.cycle_start_day);
+
+  // Reminder notification state
+  const [reminderEnabled, setReminderEnabled] = useState<boolean>(
+    Boolean(settings.reminder_enabled)
+  );
+  const [isReminderLoading, setIsReminderLoading] = useState<boolean>(false);
 
   // Categories state
   const [catTab, setCatTab] = useState<TransactionType>('expense');
@@ -85,6 +95,7 @@ export const SettingsScreen: React.FC = () => {
   useEffect(() => {
     setInitialBalanceInput(settings.initial_balance.toString());
     setCycleStartDay(settings.cycle_start_day);
+    setReminderEnabled(Boolean(settings.reminder_enabled));
   }, [settings]);
 
   // Tải danh sách danh mục
@@ -101,7 +112,7 @@ export const SettingsScreen: React.FC = () => {
     loadCategories();
   }, [catTab, dataVersion]);
 
-  // Lưu cài đặt chung
+  // Lưu cài đặt chung (Số dư & Chu kỳ)
   const handleSaveSettings = () => {
     const balanceNum = parseFloat(initialBalanceInput.replace(/[^0-9.-]/g, '')) || 0;
     const day = Math.min(Math.max(1, cycleStartDay), 28);
@@ -113,6 +124,41 @@ export const SettingsScreen: React.FC = () => {
     } catch (e) {
       Alert.alert('Lỗi', 'Không thể lưu cài đặt.');
     }
+  };
+
+  // Xử lý bật/tắt nhắc nhở hàng ngày lúc 21:00 (chỉ trên Native)
+  const handleToggleReminder = async (value: boolean) => {
+    if (isReminderLoading) return;
+    setIsReminderLoading(true);
+
+    if (value) {
+      // Yêu cầu quyền và đặt lịch thông báo hàng ngày lúc 21:00
+      const success = await scheduleDailyReminder(21, 0);
+      if (success) {
+        updateReminderSetting(true);
+        setReminderEnabled(true);
+        notifyDataChanged();
+        Alert.alert(
+          'Đã bật nhắc nhở! 🔔',
+          'Ứng dụng sẽ gửi thông báo nhắc bạn ghi chép chi tiêu vào lúc 21:00 mỗi tối.'
+        );
+      } else {
+        setReminderEnabled(false);
+        Alert.alert(
+          'Không thể bật thông báo',
+          'Vui lòng cấp quyền thông báo cho ứng dụng trong phần Cài đặt thiết bị để sử dụng tính năng này.'
+        );
+      }
+    } else {
+      // Hủy lịch nhắc nhở
+      await cancelDailyReminder();
+      updateReminderSetting(false);
+      setReminderEnabled(false);
+      notifyDataChanged();
+      Alert.alert('Đã tắt nhắc nhở', 'Đã hủy lịch nhắc nhở ghi chép hàng ngày.');
+    }
+
+    setIsReminderLoading(false);
   };
 
   // Thêm danh mục mới
@@ -238,6 +284,32 @@ export const SettingsScreen: React.FC = () => {
           <Text style={styles.saveSettingsBtnText}>Lưu cài đặt</Text>
         </TouchableOpacity>
       </View>
+
+      {/* KHỐI NHẮC NHỞ HÀNG NGÀY (ẨN TRÊN WEB ĐỂ TRÁNH LỖI TRÌNH DUYỆT) */}
+      {Platform.OS !== 'web' && (
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="notifications-outline" size={20} color="#F59E0B" style={{ marginRight: 8 }} />
+            <Text style={styles.cardTitle}>Nhắc nhở hàng ngày</Text>
+          </View>
+
+          <View style={styles.reminderRow}>
+            <View style={styles.reminderTextWrap}>
+              <Text style={styles.reminderTitle}>Nhắc nhở ghi chép lúc 21:00</Text>
+              <Text style={styles.reminderSubtitle}>
+                Gửi thông báo mỗi tối để bạn không quên ghi chép các khoản thu chi trong ngày
+              </Text>
+            </View>
+            <Switch
+              value={reminderEnabled}
+              onValueChange={handleToggleReminder}
+              disabled={isReminderLoading}
+              trackColor={{ false: '#CBD5E1', true: '#93C5FD' }}
+              thumbColor={reminderEnabled ? '#2563EB' : '#F1F5F9'}
+            />
+          </View>
+        </View>
+      )}
 
       {/* KHỐI QUẢN LÝ DANH MỤC */}
       <View style={styles.card}>
@@ -515,6 +587,26 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
+  },
+  reminderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  reminderTextWrap: {
+    flex: 1,
+    marginRight: 14,
+  },
+  reminderTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E293B',
+    marginBottom: 4,
+  },
+  reminderSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 17,
   },
   tabRow: {
     flexDirection: 'row',

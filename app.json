@@ -1,15 +1,17 @@
 {
   "expo": {
-    "name": "Spending_Managerment",
-    "slug": "Spending_Managerment",
+    "name": "Quản Lý Chi Tiêu",
+    "slug": "quan-ly-chi-tieu",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nguyennhuthuynh.quanlychitieu"
     },
     "android": {
+      "package": "com.nguyennhuthuynh.quanlychitieu",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -19,12 +21,36 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png",
+      "name": "Quản Lý Chi Tiêu",
+      "shortName": "Chi Tiêu",
+      "lang": "vi",
+      "display": "standalone",
+      "orientation": "portrait",
+      "backgroundColor": "#F4F6F8",
+      "themeColor": "#2563EB"
     },
     "plugins": [
       "expo-sqlite",
       "expo-font",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2563EB"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#2563EB",
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain"
+        }
+      ]
     ]
   }
 }

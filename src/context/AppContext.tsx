@@ -26,6 +26,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     id: 1,
     initial_balance: 0,
     cycle_start_day: 1,
+    reminder_enabled: 0,
   });
 
   const reloadSettings = useCallback(() => {

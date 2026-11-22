@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Alert,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PieChart, BarChart } from 'react-native-gifted-charts';
@@ -89,13 +90,6 @@ export const StatsScreen: React.FC = () => {
     if (trendData.length === 0) return [];
     const items: any[] = [];
 
-    // Tìm giá trị lớn nhất để chuẩn hóa tránh trường hợp tất cả = 0
-    let maxVal = 0;
-    trendData.forEach((t) => {
-      if (t.totalIncome > maxVal) maxVal = t.totalIncome;
-      if (t.totalExpense > maxVal) maxVal = t.totalExpense;
-    });
-
     trendData.forEach((t) => {
       // Cột Thu
       items.push({
@@ -116,7 +110,7 @@ export const StatsScreen: React.FC = () => {
     return items;
   }, [trendData]);
 
-  // Xử lý xuất báo cáo CSV
+  // Xử lý xuất báo cáo CSV (Tương thích Web & Native)
   const handleExportCSV = async () => {
     if (isExporting) return;
     setIsExporting(true);
@@ -126,9 +120,44 @@ export const StatsScreen: React.FC = () => {
         endDate: cycle.endISO,
       });
 
-      const res = await exportTransactionsToCSV(txList, cycle.label);
-      if (!res.success && res.message) {
-        Alert.alert('Thông báo', res.message);
+      if (txList.length === 0) {
+        Alert.alert('Thông báo', 'Chu kỳ này chưa có giao dịch nào để xuất báo cáo.');
+        setIsExporting(false);
+        return;
+      }
+
+      // Xử lý riêng cho nền tảng Web: Tạo Blob và tải trực tiếp qua thẻ <a> ẩn
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        const BOM = '\uFEFF';
+        const header = ['Ngày giao dịch', 'Loại', 'Danh mục', 'Số tiền (VNĐ)', 'Ghi chú'];
+        const rows = txList.map((t) => {
+          const dateStr = t.transaction_date.replace('T', ' ');
+          const typeStr = t.type === 'income' ? 'Khoản Thu' : 'Khoản Chi';
+          const catStr = `"${(t.category_name || 'Khác').replace(/"/g, '""')}"`;
+          const amountStr = t.amount.toString();
+          const noteStr = `"${(t.note || '').replace(/"/g, '""')}"`;
+          return [dateStr, typeStr, catStr, amountStr, noteStr].join(',');
+        });
+
+        const csvContent = BOM + [header.join(','), ...rows].join('\r\n');
+        const safeCycleName = cycle.label.replace(/[\/\\?%*:|"<> ]/g, '_');
+        const fileName = `Bao_cao_chi_tieu_${safeCycleName}.csv`;
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } else {
+        // Nền tảng Native (iOS/Android)
+        const res = await exportTransactionsToCSV(txList, cycle.label);
+        if (!res.success && res.message) {
+          Alert.alert('Thông báo', res.message);
+        }
       }
     } catch (err: any) {
       Alert.alert('Lỗi xuất tệp', err?.message || 'Không thể xuất tệp báo cáo.');
@@ -388,7 +417,7 @@ export const StatsScreen: React.FC = () => {
               if (num >= 1000) return `${(num / 1000).toFixed(0)}k`;
               return label;
             }}
-            width={screenWidth - 90}
+            width={screenWidth > 480 ? 400 : screenWidth - 90}
             height={180}
             isAnimated
             roundedTop
