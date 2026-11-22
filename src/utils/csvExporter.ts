@@ -1,9 +1,8 @@
-import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 import { Transaction } from '../types';
 
 /**
- * Xuất danh sách giao dịch của chu kỳ ra file CSV và kích hoạt chia sẻ
+ * Xuất danh sách giao dịch của chu kỳ ra file CSV và kích hoạt tải về / chia sẻ
  */
 export async function exportTransactionsToCSV(
   transactions: Transaction[],
@@ -12,11 +11,6 @@ export async function exportTransactionsToCSV(
   try {
     if (!transactions || transactions.length === 0) {
       return { success: false, message: 'Chu kỳ này chưa có giao dịch nào để xuất báo cáo.' };
-    }
-
-    const isAvailable = await Sharing.isAvailableAsync();
-    if (!isAvailable) {
-      return { success: false, message: 'Thiết bị không hỗ trợ tính năng chia sẻ tệp.' };
     }
 
     // BOM UTF-8 (\uFEFF) giúp Excel trên Windows và Mac đọc chuẩn dấu tiếng Việt
@@ -38,6 +32,29 @@ export async function exportTransactionsToCSV(
     // Tạo tên file an toàn không chứa ký tự cấm
     const safeCycleName = cycleLabel.replace(/[\/\\?%*:|"<> ]/g, '_');
     const fileName = `Bao_cao_chi_tieu_${safeCycleName}.csv`;
+
+    // 1. Xử lý trên nền tảng WEB (PWA / Safari / Chrome)
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      return { success: true };
+    }
+
+    // 2. Xử lý trên nền tảng NATIVE (iOS / Android)
+    const Sharing = require('expo-sharing');
+    const FileSystem = require('expo-file-system/legacy');
+
+    const isAvailable = await Sharing.isAvailableAsync();
+    if (!isAvailable) {
+      return { success: false, message: 'Thiết bị không hỗ trợ tính năng chia sẻ tệp.' };
+    }
 
     const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
     if (!baseDir) {

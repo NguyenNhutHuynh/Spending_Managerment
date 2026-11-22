@@ -4,6 +4,7 @@ export interface Setting {
   id: number;
   initial_balance: number;
   cycle_start_day: number;
+  reminder_enabled?: number;
 }
 
 export interface Category {

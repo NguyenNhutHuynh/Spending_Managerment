@@ -10,6 +10,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useFonts } from 'expo-font';
 import { initDatabase } from './src/database/db';
 import { AppProvider, useApp } from './src/context/AppContext';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -41,7 +42,7 @@ function MainApp() {
           </Text>
         </View>
         <View style={styles.mvpBadge}>
-          <Text style={styles.mvpBadgeText}>Giai đoạn 2</Text>
+          <Text style={styles.mvpBadgeText}>PWA Mobile</Text>
         </View>
       </View>
 
@@ -153,6 +154,7 @@ function MainApp() {
 }
 
 export default function App() {
+  const [fontsLoaded, fontError] = useFonts(Ionicons.font);
   const [dbReady, setDbReady] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -161,26 +163,30 @@ export default function App() {
       initDatabase();
       setDbReady(true);
     } catch (err: any) {
-      console.error('Lỗi khởi tạo SQLite:', err);
-      setErrorMsg(err?.message || 'Không thể khởi tạo cơ sở dữ liệu SQLite.');
+      console.error('Lỗi khởi tạo cơ sở dữ liệu:', err);
+      setErrorMsg(err?.message || 'Không thể khởi tạo cơ sở dữ liệu.');
     }
   }, []);
 
-  if (!dbReady) {
+  const isReady = dbReady && (fontsLoaded || !!fontError);
+
+  if (!isReady) {
     return (
-      <View style={styles.loadingContainer}>
-        {errorMsg ? (
-          <View style={styles.errorBox}>
-            <Ionicons name="alert-circle" size={48} color="#DC2626" />
-            <Text style={styles.errorTitle}>Lỗi khởi động ứng dụng</Text>
-            <Text style={styles.errorSub}>{errorMsg}</Text>
-          </View>
-        ) : (
-          <>
-            <ActivityIndicator size="large" color="#2563EB" />
-            <Text style={styles.loadingText}>Đang khởi tạo cơ sở dữ liệu SQLite...</Text>
-          </>
-        )}
+      <View style={styles.webOuterContainer}>
+        <View style={styles.loadingContainer}>
+          {errorMsg ? (
+            <View style={styles.errorBox}>
+              <Ionicons name="alert-circle" size={48} color="#DC2626" />
+              <Text style={styles.errorTitle}>Lỗi khởi động ứng dụng</Text>
+              <Text style={styles.errorSub}>{errorMsg}</Text>
+            </View>
+          ) : (
+            <>
+              <ActivityIndicator size="large" color="#2563EB" />
+              <Text style={styles.loadingText}>Đang tải ứng dụng...</Text>
+            </>
+          )}
+        </View>
       </View>
     );
   }
@@ -188,13 +194,40 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AppProvider>
-        <MainApp />
+        <View style={styles.webOuterContainer}>
+          <View style={styles.appContainer}>
+            <MainApp />
+          </View>
+        </View>
       </AppProvider>
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
+  webOuterContainer: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    backgroundColor: Platform.OS === 'web' ? '#F4F6F8' : '#FFFFFF',
+    justifyContent: 'center',
+  },
+  appContainer: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    backgroundColor: '#FFFFFF',
+    ...(Platform.OS === 'web'
+      ? {
+          shadowColor: '#0F172A',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.08,
+          shadowRadius: 16,
+          height: '100%',
+        }
+      : {}),
+  },
   safeArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',
